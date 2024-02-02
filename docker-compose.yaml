@@ -1,0 +1,56 @@
+version: "3.8"
+services:
+  app:
+    build: 
+      context: ./
+      dockerfile: "Dockerfile.app"
+    ports: 
+      - "8000:${APP_PORT}"
+    environment:
+      APP_PORT: ${APP_PORT}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+    depends_on:
+      - db
+  db:
+    image: "postgres:${POSTGRES_VERSION}"
+    ports:
+     - "5432"
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - 'db:/var/lib/postgresql/data'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "${DB_DATABASE}"]
+      interval: 30s
+      timeout: 60s
+      retries: 5
+      start_period: 80s  
+  migrate:
+    build: 
+      context: ./
+      dockerfile: "Dockerfile.migrate"
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+    depends_on:
+      - db
+    entrypoint: ['/wait-for-it.sh', '${DB_HOST}:${DB_PORT}', '-t', '30', '--', '/entrypoint-migrate.sh']
+    volumes:
+        - ./migrations:/migrations
+        - type: bind
+          source: ./docker/entrypoint-migrate.sh
+          target: /entrypoint-migrate.sh
+        - type: bind
+          source: ./docker/wait-for-it.sh
+          target: /wait-for-it.sh
+volumes:
+  db: {}
